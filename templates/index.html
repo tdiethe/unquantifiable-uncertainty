@@ -1,0 +1,178 @@
+{% extends 'base.html' %}
+
+{% block title %}Unquantifiable Uncertainty - Home{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h1 class="display-4">Unquantifiable Uncertainty</h1>
+        <p class="lead">Share and discuss opinions on issues related to unquantifiable uncertainty.</p>
+    </div>
+    <div class="col-md-4 d-flex align-items-center justify-content-end">
+        {% if current_user.is_authenticated %}
+        <a href="{{ url_for('new_opinion') }}" class="btn btn-primary btn-lg">
+            <i class="fas fa-plus-circle me-2"></i>Add Your Opinion
+        </a>
+        {% else %}
+        <a href="{{ url_for('login') }}" class="btn btn-outline-primary btn-lg">
+            <i class="fas fa-sign-in-alt me-2"></i>Login to Contribute
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-light">
+                <h2 class="h5 mb-0">What is Unquantifiable Uncertainty?</h2>
+            </div>
+            <div class="card-body">
+                <p>Unquantifiable uncertainty refers to situations where the probabilities of different outcomes cannot be reliably measured or estimated. Unlike quantifiable risks that can be modeled statistically, unquantifiable uncertainties represent the "unknown unknowns" that challenge our decision-making processes.</p>
+                <p class="mb-0">This platform aims to gather diverse perspectives on what issues exist in the realm of unquantifiable uncertainty. Share your thoughts and engage with others' ideas through upvotes and downvotes.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <h2>Community Opinions</h2>
+            <div class="dropdown">
+                <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="sortDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="fas fa-sort me-1"></i>Sort By
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="sortDropdown">
+                    <li><a class="dropdown-item sort-option" href="#" data-sort="newest">Newest</a></li>
+                    <li><a class="dropdown-item sort-option" href="#" data-sort="oldest">Oldest</a></li>
+                    <li><a class="dropdown-item sort-option" href="#" data-sort="most-votes">Most Popular</a></li>
+                    <li><a class="dropdown-item sort-option" href="#" data-sort="controversial">Most Controversial</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row" id="opinions-container">
+    {% if opinions %}
+        {% for opinion in opinions %}
+        <div class="col-md-6 mb-4 opinion-item" data-created="{{ opinion.created_at.timestamp() }}" data-score="{{ opinion.score }}" data-controversy="{{ opinion.upvotes + opinion.downvotes }}">
+            <div class="card h-100 shadow-sm hover-shadow">
+                <div class="card-body">
+                    <h3 class="h5 card-title">
+                        <a href="{{ url_for('view_opinion', opinion_id=opinion.id) }}" class="text-decoration-none text-dark">{{ opinion.title }}</a>
+                    </h3>
+                    <p class="card-text text-truncate-3">{{ opinion.content }}</p>
+                </div>
+                <div class="card-footer bg-white d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                        <div class="vote-buttons me-3" data-opinion-id="{{ opinion.id }}">
+                            <button class="btn btn-sm btn-vote upvote {{ 'active' if user_vote(opinion.id) == 1 }}" data-vote="1" {{ 'disabled' if not current_user.is_authenticated }}>
+                                <i class="fas fa-arrow-up"></i>
+                            </button>
+                            <span class="vote-score mx-1">{{ opinion.score }}</span>
+                            <button class="btn btn-sm btn-vote downvote {{ 'active' if user_vote(opinion.id) == -1 }}" data-vote="-1" {{ 'disabled' if not current_user.is_authenticated }}>
+                                <i class="fas fa-arrow-down"></i>
+                            </button>
+                        </div>
+                        <small class="text-muted">
+                            <i class="fas fa-user me-1"></i>{{ opinion.author.name }}
+                        </small>
+                    </div>
+                    <small class="text-muted">
+                        <i class="far fa-clock me-1"></i>{{ opinion.created_at.strftime('%b %d, %Y') }}
+                    </small>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="col-12">
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>No opinions have been shared yet. Be the first to contribute!
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+{% if not current_user.is_authenticated %}
+<div class="row mt-4">
+    <div class="col-12 text-center">
+        <div class="card shadow-sm p-4">
+            <h3 class="h4">Join the Conversation</h3>
+            <p>Login with your Google account to share your opinions and vote on others' contributions.</p>
+            <div>
+                <a href="{{ url_for('login_google') }}" class="btn btn-primary btn-lg">
+                    <i class="fab fa-google me-2"></i>Sign in with Google
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+    $(document).ready(function() {
+        // Voting functionality
+        $('.btn-vote').click(function() {
+            if ($(this).attr('disabled')) return;
+            
+            const button = $(this);
+            const opinionId = button.closest('.vote-buttons').data('opinion-id');
+            const voteType = parseInt(button.data('vote'));
+            
+            $.ajax({
+                url: `/opinion/${opinionId}/vote`,
+                type: 'POST',
+                data: { vote_type: voteType },
+                success: function(response) {
+                    const voteButtons = $(`.vote-buttons[data-opinion-id="${opinionId}"]`);
+                    voteButtons.find('.vote-score').text(response.score);
+                    
+                    // Update active state
+                    voteButtons.find('.upvote').toggleClass('active', voteType === 1 && !button.hasClass('active'));
+                    voteButtons.find('.downvote').toggleClass('active', voteType === -1 && !button.hasClass('active'));
+                    
+                    // Update data attributes for sorting
+                    button.closest('.opinion-item').attr('data-score', response.score);
+                    button.closest('.opinion-item').attr('data-controversy', response.upvotes + response.downvotes);
+                },
+                error: function() {
+                    alert('Error voting. Please try again.');
+                }
+            });
+        });
+        
+        // Sorting functionality
+        $('.sort-option').click(function(e) {
+            e.preventDefault();
+            const sortBy = $(this).data('sort');
+            const container = $('#opinions-container');
+            const items = container.find('.opinion-item').get();
+            
+            items.sort(function(a, b) {
+                if (sortBy === 'newest') {
+                    return $(b).data('created') - $(a).data('created');
+                } else if (sortBy === 'oldest') {
+                    return $(a).data('created') - $(b).data('created');
+                } else if (sortBy === 'most-votes') {
+                    return $(b).data('score') - $(a).data('score');
+                } else if (sortBy === 'controversial') {
+                    return $(b).data('controversy') - $(a).data('controversy');
+                }
+            });
+            
+            container.empty();
+            $.each(items, function(i, item) {
+                container.append(item);
+            });
+            
+            // Update dropdown button text
+            $('#sortDropdown').html(`<i class="fas fa-sort me-1"></i>Sort: ${$(this).text()}`);
+        });
+    });
+</script>
+{% endblock %}

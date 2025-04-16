@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+
+{% block title %}Add New Opinion - Unquantifiable Uncertainty{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h2 class="h4 mb-0">Add New Opinion</h2>
+            </div>
+            <div class="card-body p-4">
+                <form method="POST" action="{{ url_for('new_opinion') }}">
+                    <div class="mb-3">
+                        <label for="title" class="form-label">Title</label>
+                        <input type="text" class="form-control" id="title" name="title" required maxlength="100" placeholder="A concise title for your opinion">
+                        <div class="form-text">Keep it clear and specific (max 100 characters)</div>
+                    </div>
+                    <div class="mb-4">
+                        <label for="content" class="form-label">Content</label>
+                        <textarea class="form-control" id="content" name="content" rows="6" required placeholder="Describe your opinion on an unquantifiable uncertainty issue..."></textarea>
+                        <div class="form-text">Explain your perspective clearly and provide context</div>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-left me-2"></i>Cancel
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-paper-plane me-2"></i>Submit Opinion
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <div class="card mt-4 shadow-sm">
+            <div class="card-header bg-light">
+                <h3 class="h5 mb-0">Guidelines for Sharing Opinions</h3>
+            </div>
+            <div class="card-body">
+                <ul class="mb-0">
+                    <li><strong>Be specific:</strong> Focus on a particular aspect of unquantifiable uncertainty</li>
+                    <li><strong>Be constructive:</strong> Aim to contribute meaningfully to the discussion</li>
+                    <li><strong>Be respectful:</strong> Present your views in a way that encourages dialogue</li>
+                    <li><strong>Provide context:</strong> Help others understand your perspective</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Character counter for title
+    $(document).ready(function() {
+        $('#title').on('input', function() {
+            const maxLength = 100;
+            const currentLength = $(this).val().length;
+            
+            if (currentLength > maxLength) {
+                $(this).val($(this).val().substring(0, maxLength));
+            }
+            
+            const remaining = maxLength - $(this).val().length;
+            const formText = $(this).next('.form-text');
+            
+            if (remaining < 20) {
+                formText.html(`<span class="text-${remaining < 10 ? 'danger' : 'warning'}">Keep it clear and specific (${remaining} characters remaining)</span>`);
+            } else {
+                formText.html('Keep it clear and specific (max 100 characters)');
+            }
+        });
+    });
+</script>
+{% endblock %}

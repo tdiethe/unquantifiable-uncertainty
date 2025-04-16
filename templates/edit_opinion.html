@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+
+{% block title %}Edit Opinion - Unquantifiable Uncertainty{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h2 class="h4 mb-0">Edit Opinion</h2>
+            </div>
+            <div class="card-body p-4">
+                <form method="POST" action="{{ url_for('edit_opinion', opinion_id=opinion.id) }}">
+                    <div class="mb-3">
+                        <label for="title" class="form-label">Title</label>
+                        <input type="text" class="form-control" id="title" name="title" required maxlength="100" value="{{ opinion.title }}">
+                        <div class="form-text">Keep it clear and specific (max 100 characters)</div>
+                    </div>
+                    <div class="mb-4">
+                        <label for="content" class="form-label">Content</label>
+                        <textarea class="form-control" id="content" name="content" rows="6" required>{{ opinion.content }}</textarea>
+                        <div class="form-text">Explain your perspective clearly and provide context</div>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('view_opinion', opinion_id=opinion.id) }}" class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-left me-2"></i>Cancel
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-2"></i>Save Changes
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Character counter for title
+    $(document).ready(function() {
+        $('#title').on('input', function() {
+            const maxLength = 100;
+            const currentLength = $(this).val().length;
+            
+            if (currentLength > maxLength) {
+                $(this).val($(this).val().substring(0, maxLength));
+            }
+            
+            const remaining = maxLength - $(this).val().length;
+            const formText = $(this).next('.form-text');
+            
+            if (remaining < 20) {
+                formText.html(`<span class="text-${remaining < 10 ? 'danger' : 'warning'}">Keep it clear and specific (${remaining} characters remaining)</span>`);
+            } else {
+                formText.html('Keep it clear and specific (max 100 characters)');
+            }
+        });
+    });
+</script>
+{% endblock %}

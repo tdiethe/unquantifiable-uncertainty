@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+
+{% block title %}Login - Unquantifiable Uncertainty{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white text-center">
+                <h2 class="h4 mb-0">Login to Contribute</h2>
+            </div>
+            <div class="card-body p-4">
+                <div class="text-center mb-4">
+                    <p class="lead">Sign in to share your opinions and vote on others' contributions.</p>
+                </div>
+                
+                <div class="d-grid gap-3">
+                    <a href="{{ url_for('login_google') }}" class="btn btn-lg btn-outline-primary">
+                        <i class="fab fa-google me-2"></i>Sign in with Google
+                    </a>
+                    
+                    {% if config.DEVELOPMENT_MODE %}
+                    <a href="{{ url_for('dev_login') }}" class="btn btn-lg btn-outline-secondary">
+                        <i class="fas fa-code me-2"></i>Development Login
+                    </a>
+                    {% endif %}
+                </div>
+                
+                <div class="mt-4 text-center">
+                    <p class="text-muted">By signing in, you agree to our Terms of Service and Privacy Policy.</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-4 shadow-sm">
+            <div class="card-body">
+                <h3 class="h5">Why Sign In?</h3>
+                <ul class="mb-0">
+                    <li>Share your opinions on unquantifiable uncertainty</li>
+                    <li>Upvote and downvote other users' contributions</li>
+                    <li>Track your contributions and engagement</li>
+                    <li>Be part of a growing community of thinkers</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
