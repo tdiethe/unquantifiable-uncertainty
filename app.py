@@ -503,6 +503,82 @@ def init_db():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/init-production-db')
+def init_production_db():
+    # This should only be called once when deploying to production
+    # We'll use a simple token-based authentication to prevent unauthorized access
+    token = request.args.get('token')
+    if not token or token != os.getenv('SECRET_KEY')[:10]:  # Use first 10 chars of SECRET_KEY as a simple token
+        return jsonify({'error': 'Unauthorized access'}), 403
+        
+    try:
+        db.create_all()
+        # Check if admin user exists, if not create one
+        admin_exists = Admin.query.filter_by(username=os.getenv('ADMIN_USERNAME')).first()
+        if not admin_exists and os.getenv('ADMIN_USERNAME') and os.getenv('ADMIN_PASSWORD'):
+            admin = Admin(username=os.getenv('ADMIN_USERNAME'))
+            
+            # Handle plain text password in .env
+            password = os.getenv('ADMIN_PASSWORD')
+            if password.startswith('pbkdf2:') or password.startswith('scrypt:'):
+                admin.password_hash = password  # It's already a hash
+            else:
+                admin.set_password(password)  # Generate hash from plain text
+                
+            db.session.add(admin)
+            db.session.commit()
+            
+            # Create admin user in User table for login
+            user = User.query.filter_by(email=f"{os.getenv('ADMIN_USERNAME')}@admin.local").first()
+            if not user:
+                user = User(
+                    email=f"{os.getenv('ADMIN_USERNAME')}@admin.local",
+                    name=f"Admin: {os.getenv('ADMIN_USERNAME')}",
+                    is_admin=True
+                )
+                db.session.add(user)
+                db.session.commit()
+        
+        # Create some sample opinions if the database is empty
+        if Opinion.query.count() == 0:
+            sample_opinions = [
+                {
+                    'title': 'Climate Change Tipping Points',
+                    'content': 'The uncertainty around climate tipping points represents a significant challenge. While we can model general warming trends, predicting exactly when systems like the Amazon rainforest or Arctic sea ice will reach irreversible tipping points remains highly uncertain.',
+                    'author_email': f"{os.getenv('ADMIN_USERNAME')}@admin.local"
+                },
+                {
+                    'title': 'Artificial General Intelligence Timeline',
+                    'content': 'The timeline for achieving artificial general intelligence (AGI) involves unquantifiable uncertainty. Despite progress in machine learning, we cannot reliably estimate when or if AI will reach human-level general intelligence, making it difficult to prepare for potential impacts.',
+                    'author_email': f"{os.getenv('ADMIN_USERNAME')}@admin.local"
+                },
+                {
+                    'title': 'Pandemic Preparedness',
+                    'content': 'Future pandemic risks involve deep uncertainty. While we can identify some potential pathogens, the emergence of novel diseases with unknown characteristics represents an unquantifiable uncertainty that challenges our ability to prepare adequate responses.',
+                    'author_email': f"{os.getenv('ADMIN_USERNAME')}@admin.local"
+                }
+            ]
+            
+            for opinion_data in sample_opinions:
+                user = User.query.filter_by(email=opinion_data['author_email']).first()
+                if user:
+                    opinion = Opinion(
+                        title=opinion_data['title'],
+                        content=opinion_data['content'],
+                        user_id=user.id
+                    )
+                    db.session.add(opinion)
+            
+            db.session.commit()
+        
+        return jsonify({
+            'message': 'Production database initialized successfully!', 
+            'admin_created': not admin_exists,
+            'sample_data_added': Opinion.query.count() > 0
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 # Helper context processor for templates
 @app.context_processor
 def utility_processor():

@@ -24,6 +24,9 @@ This application is configured for easy deployment on Render:
    - `ADMIN_PASSWORD`: Password for the admin account
    - `SECRET_KEY`: A secure random string for session encryption
 6. After deployment, add your Render domain (e.g., `https://your-app-name.onrender.com/login/google/callback`) to the authorized redirect URIs in your Google Cloud Console project
+7. Initialize the production database by visiting `https://your-app-name.onrender.com/init-production-db?token=YOUR_TOKEN` where `YOUR_TOKEN` is the first 10 characters of your SECRET_KEY
+
+The application is configured to use PostgreSQL in production. The database will be automatically provisioned by Render based on the `render.yaml` configuration.
 
 ## Local Development Setup
 
