@@ -55,14 +55,22 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
+# Register custom Jinja2 filters
+register_filters(app)
+
 # Initialize OAuth client if credentials are provided
 if GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET:
     client = WebApplicationClient(GOOGLE_CLIENT_ID)
 else:
     client = None
 
-# Register custom Jinja2 filters
-register_filters(app)
+# Create database tables
+with app.app_context():
+    try:
+        db.create_all()
+        print("Database tables created successfully")
+    except Exception as e:
+        print(f"Error creating database tables: {e}")
 
 # Database Models
 class User(UserMixin, db.Model):
@@ -595,35 +603,6 @@ def inject_now():
     return {'now': datetime.now()}
 
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
-        # Check if admin user exists, if not create one
-        admin_exists = Admin.query.filter_by(username=os.getenv('ADMIN_USERNAME')).first()
-        if not admin_exists and os.getenv('ADMIN_USERNAME') and os.getenv('ADMIN_PASSWORD'):
-            admin = Admin(username=os.getenv('ADMIN_USERNAME'))
-            
-            # Handle plain text password in .env
-            password = os.getenv('ADMIN_PASSWORD')
-            if password.startswith('pbkdf2:') or password.startswith('scrypt:'):
-                admin.password_hash = password  # It's already a hash
-            else:
-                admin.set_password(password)  # Generate hash from plain text
-                
-            db.session.add(admin)
-            db.session.commit()
-            
-            # Create admin user in User table for login
-            user = User.query.filter_by(email=f"{os.getenv('ADMIN_USERNAME')}@admin.local").first()
-            if not user:
-                user = User(
-                    email=f"{os.getenv('ADMIN_USERNAME')}@admin.local",
-                    name=f"Admin: {os.getenv('ADMIN_USERNAME')}",
-                    is_admin=True
-                )
-                db.session.add(user)
-                db.session.commit()
-            print(f"Admin user '{os.getenv('ADMIN_USERNAME')}' created successfully.")
-    
     # Use PORT environment variable for production (Render sets this)
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=app.config['DEVELOPMENT_MODE'])
