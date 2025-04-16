@@ -35,8 +35,10 @@ if database_url and database_url.startswith('postgres://'):
     # Fix for Render's PostgreSQL URL format
     database_url = database_url.replace('postgres://', 'postgresql://', 1)
     app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+    print(f"Using PostgreSQL database: {database_url[:25]}...")
 else:
     app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URI', 'sqlite:///opinions.db')
+    print(f"Using SQLite database: {app.config['SQLALCHEMY_DATABASE_URI']}")
     
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['DEVELOPMENT_MODE'] = os.getenv('FLASK_ENV') == 'development'
@@ -67,8 +69,39 @@ else:
 # Create database tables
 with app.app_context():
     try:
+        # Check if we're connected to PostgreSQL
+        is_postgres = 'postgresql' in str(db.engine.url)
         db.create_all()
-        print("Database tables created successfully")
+        print(f"Database tables created successfully on {'PostgreSQL' if is_postgres else 'SQLite'}")
+        
+        # In production, automatically create admin user if it doesn't exist
+        if not app.config['DEVELOPMENT_MODE']:
+            # Check if admin user exists, if not create one
+            admin_exists = Admin.query.filter_by(username=os.getenv('ADMIN_USERNAME')).first()
+            if not admin_exists and os.getenv('ADMIN_USERNAME') and os.getenv('ADMIN_PASSWORD'):
+                admin = Admin(username=os.getenv('ADMIN_USERNAME'))
+                
+                # Handle plain text password in .env
+                password = os.getenv('ADMIN_PASSWORD')
+                if password.startswith('pbkdf2:') or password.startswith('scrypt:'):
+                    admin.password_hash = password  # It's already a hash
+                else:
+                    admin.set_password(password)  # Generate hash from plain text
+                    
+                db.session.add(admin)
+                db.session.commit()
+                
+                # Create admin user in User table for login
+                user = User.query.filter_by(email=f"{os.getenv('ADMIN_USERNAME')}@admin.local").first()
+                if not user:
+                    user = User(
+                        email=f"{os.getenv('ADMIN_USERNAME')}@admin.local",
+                        name=f"Admin: {os.getenv('ADMIN_USERNAME')}",
+                        is_admin=True
+                    )
+                    db.session.add(user)
+                    db.session.commit()
+                print(f"Admin user '{os.getenv('ADMIN_USERNAME')}' created successfully")
     except Exception as e:
         print(f"Error creating database tables: {e}")
 
