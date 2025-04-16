@@ -55,3 +55,7 @@ ADMIN_PASSWORD=your_admin_password
 ```
 
 For Google OAuth, you'll need to create credentials in the [Google Cloud Console](https://console.cloud.google.com/) and add `http://127.0.0.1:5000/login/google/callback` as an authorized redirect URI.
+
+## License
+
+This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
