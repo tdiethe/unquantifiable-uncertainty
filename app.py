@@ -75,6 +75,7 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(100), unique=True, nullable=False)
     name = db.Column(db.String(100), nullable=False)
+    profile_pic = db.Column(db.String(255), nullable=True)
     is_admin = db.Column(db.Boolean, default=False)
     opinions = db.relationship('Opinion', backref='author', lazy=True)
     votes = db.relationship('Vote', backref='user', lazy=True)
