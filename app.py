@@ -31,9 +31,12 @@ app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-key-for-testing')
 
 # Configure database - use PostgreSQL in production if available
 database_url = os.getenv('DATABASE_URL')
-if database_url and database_url.startswith('postgres://'):
+print(f"Raw DATABASE_URL: {database_url if database_url else 'Not set'}")
+
+if database_url:
     # Fix for Render's PostgreSQL URL format
-    database_url = database_url.replace('postgres://', 'postgresql://', 1)
+    if database_url.startswith('postgres://'):
+        database_url = database_url.replace('postgres://', 'postgresql://', 1)
     app.config['SQLALCHEMY_DATABASE_URI'] = database_url
     print(f"Using PostgreSQL database: {database_url[:25]}...")
 else:
@@ -42,6 +45,7 @@ else:
     
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['DEVELOPMENT_MODE'] = os.getenv('FLASK_ENV') == 'development'
+print(f"Development mode: {app.config['DEVELOPMENT_MODE']}")
 
 # Google OAuth Configuration
 GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID')
@@ -66,13 +70,88 @@ if GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET:
 else:
     client = None
 
+# Database Models
+class User(UserMixin, db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(100), unique=True, nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    is_admin = db.Column(db.Boolean, default=False)
+    opinions = db.relationship('Opinion', backref='author', lazy=True)
+    votes = db.relationship('Vote', backref='user', lazy=True)
+
+    def __repr__(self):
+        return f'<User {self.email}>'
+
+class Admin(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(64), unique=True, nullable=False)
+    password_hash = db.Column(db.String(128), nullable=False)
+
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
+
+    def __repr__(self):
+        return f'<Admin {self.username}>'
+
+class Opinion(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(100), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    votes = db.relationship('Vote', backref='opinion', lazy=True, cascade='all, delete-orphan')
+
+    def __repr__(self):
+        return f'<Opinion {self.title}>'
+
+    @property
+    def upvotes(self):
+        return Vote.query.filter_by(opinion_id=self.id, vote_type=1).count()
+
+    @property
+    def downvotes(self):
+        return Vote.query.filter_by(opinion_id=self.id, vote_type=-1).count()
+
+    @property
+    def score(self):
+        return self.upvotes - self.downvotes
+
+class Vote(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    opinion_id = db.Column(db.Integer, db.ForeignKey('opinion.id'), nullable=False)
+    vote_type = db.Column(db.Integer, nullable=False)  # 1 for upvote, -1 for downvote
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (db.UniqueConstraint('user_id', 'opinion_id', name='user_opinion_uc'),)
+
+    def __repr__(self):
+        return f'<Vote {self.vote_type} on Opinion {self.opinion_id} by User {self.user_id}>'
+
 # Create database tables
 with app.app_context():
     try:
+        # Debug database connection
+        print(f"Database engine: {db.engine}")
+        print(f"Database URL: {db.engine.url}")
+        
         # Check if we're connected to PostgreSQL
         is_postgres = 'postgresql' in str(db.engine.url)
+        print(f"Is PostgreSQL: {is_postgres}")
+        
+        # Create all tables
         db.create_all()
         print(f"Database tables created successfully on {'PostgreSQL' if is_postgres else 'SQLite'}")
+        
+        # List all tables to verify they were created
+        from sqlalchemy import inspect
+        inspector = inspect(db.engine)
+        tables = inspector.get_table_names()
+        print(f"Created tables: {tables}")
         
         # In production, automatically create admin user if it doesn't exist
         if not app.config['DEVELOPMENT_MODE']:
@@ -83,10 +162,12 @@ with app.app_context():
                 
                 # Handle plain text password in .env
                 password = os.getenv('ADMIN_PASSWORD')
-                if password.startswith('pbkdf2:') or password.startswith('scrypt:'):
+                if password and (password.startswith('pbkdf2:') or password.startswith('scrypt:')):
                     admin.password_hash = password  # It's already a hash
-                else:
+                elif password:
                     admin.set_password(password)  # Generate hash from plain text
+                else:
+                    print("WARNING: ADMIN_PASSWORD not set")
                     
                 db.session.add(admin)
                 db.session.commit()
@@ -102,65 +183,22 @@ with app.app_context():
                     db.session.add(user)
                     db.session.commit()
                 print(f"Admin user '{os.getenv('ADMIN_USERNAME')}' created successfully")
+                
+                # Add sample opinions if none exist
+                if Opinion.query.count() == 0:
+                    sample_opinions = [
+                        Opinion(title="The Uncertainty of AI", content="AI systems face fundamental uncertainty in real-world applications due to the complexity of human behavior and societal contexts.", user_id=user.id),
+                        Opinion(title="Climate Change Predictions", content="Despite advanced models, climate change predictions contain unquantifiable uncertainties related to human behavior and complex feedback loops.", user_id=user.id),
+                        Opinion(title="Economic Forecasting Limitations", content="Economic forecasts often fail because they attempt to quantify inherently uncertain human behaviors and market psychology.", user_id=user.id)
+                    ]
+                    for opinion in sample_opinions:
+                        db.session.add(opinion)
+                    db.session.commit()
+                    print(f"Added {len(sample_opinions)} sample opinions")
     except Exception as e:
-        print(f"Error creating database tables: {e}")
-
-# Database Models
-class User(UserMixin, db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    email = db.Column(db.String(100), unique=True)
-    name = db.Column(db.String(100))
-    profile_pic = db.Column(db.String(255))
-    is_admin = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    opinions = db.relationship('Opinion', backref='author', lazy=True)
-    votes = db.relationship('Vote', backref='user', lazy=True)
-
-class Opinion(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(100), nullable=False)
-    content = db.Column(db.Text, nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    votes = db.relationship('Vote', backref='opinion', lazy=True, cascade='all, delete-orphan')
-    
-    @property
-    def upvotes(self):
-        return Vote.query.filter_by(opinion_id=self.id, vote_type=1).count()
-    
-    @property
-    def downvotes(self):
-        return Vote.query.filter_by(opinion_id=self.id, vote_type=-1).count()
-    
-    @property
-    def score(self):
-        return self.upvotes - self.downvotes
-
-class Vote(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    opinion_id = db.Column(db.Integer, db.ForeignKey('opinion.id'), nullable=False)
-    vote_type = db.Column(db.Integer, nullable=False)  # 1 for upvote, -1 for downvote
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
-    __table_args__ = (db.UniqueConstraint('user_id', 'opinion_id', name='user_opinion_uc'),)
-
-class Admin(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(80), unique=True, nullable=False)
-    password_hash = db.Column(db.String(128), nullable=False)
-
-    def set_password(self, password):
-        self.password_hash = generate_password_hash(password)
-
-    def check_password(self, password):
-        # If the stored password is already a hash, use check_password_hash
-        if self.password_hash.startswith('pbkdf2:') or self.password_hash.startswith('scrypt:'):
-            return check_password_hash(self.password_hash, password)
-        # Otherwise, compare directly (for development with plain text passwords)
-        else:
-            return self.password_hash == password
+        print(f"Error in database initialization: {e}")
+        import traceback
+        traceback.print_exc()
 
 @login_manager.user_loader
 def load_user(user_id):
